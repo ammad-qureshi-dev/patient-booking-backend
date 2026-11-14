@@ -1,0 +1,10 @@
+.git
+.gradle
+.idea
+build
+**/.DS_Store
+HELP.md
+
+# Never bake local secrets into the image
+src/main/resources/application-*.properties
+src/main/resources/application-local.yaml
