@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: patient-booking
+  profiles:
+    # Used when no profile is set; override with SPRING_PROFILES_ACTIVE
+    default: local
+
+server:
+  port: ${PORT:8080}
