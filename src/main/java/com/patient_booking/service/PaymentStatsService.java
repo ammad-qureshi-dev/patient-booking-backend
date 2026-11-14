@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.Year;
@@ -18,6 +20,7 @@ import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 /** Read-only finance reporting over received payments (grouped by the day money was received). */
@@ -25,6 +28,8 @@ import java.util.TreeMap;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PaymentStatsService {
+
+    private static final BigDecimal MINUTES_PER_HOUR = BigDecimal.valueOf(60);
 
     private final PaymentRepository paymentRepository;
 
@@ -44,7 +49,7 @@ public class PaymentStatsService {
 
         for (PaymentDailySummary row : paymentRepository.summarizeReceivedBetween(
                 range.startInclusive(), range.endExclusive())) {
-            PaymentTotals rowTotals = PaymentTotals.of(row.getCount(), row.getAmountReceived(), row.getTipAmount());
+            PaymentTotals rowTotals = toTotals(row);
             total = total.plus(rowTotals);
             byPaymentType.merge(row.getType(), rowTotals, PaymentTotals::plus);
             byDay.merge(row.getDay(), rowTotals, PaymentTotals::plus);
@@ -65,7 +70,7 @@ public class PaymentStatsService {
 
         for (PaymentDailySummary row : paymentRepository.summarizeReceivedBetween(
                 range.startInclusive(), range.endExclusive())) {
-            PaymentTotals rowTotals = PaymentTotals.of(row.getCount(), row.getAmountReceived(), row.getTipAmount());
+            PaymentTotals rowTotals = toTotals(row);
             total = total.plus(rowTotals);
             byPaymentType.merge(row.getType(), rowTotals, PaymentTotals::plus);
             byMonth.merge(YearMonth.from(row.getDay()), rowTotals, PaymentTotals::plus);
@@ -78,6 +83,23 @@ public class PaymentStatsService {
                 .orElse(null);
 
         return new PaymentYearRecapResponse(year.getValue(), total, byPaymentType, byMonth, busiestMonth);
+    }
+
+    private PaymentTotals toTotals(PaymentDailySummary row) {
+        return PaymentTotals.of(row.getCount(), row.getAmountReceived(), row.getTipAmount(), hoursOf(row));
+    }
+
+    /**
+     * Explicit hoursWorked where set, plus appointment length for the rest.
+     * Payments with neither (no hoursWorked and no matching appointment) count as 0 hours.
+     */
+    private BigDecimal hoursOf(PaymentDailySummary row) {
+        BigDecimal manual = Objects.requireNonNullElse(row.getManualHours(), BigDecimal.ZERO);
+        if (row.getLength() == null || row.getBookedCount() == 0) {
+            return manual.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal bookedMinutes = BigDecimal.valueOf((long) row.getLength().getMinutes() * row.getBookedCount());
+        return manual.add(bookedMinutes.divide(MINUTES_PER_HOUR, 2, RoundingMode.HALF_UP));
     }
 
     private Map<PaymentType, PaymentTotals> emptyTotalsPerType() {

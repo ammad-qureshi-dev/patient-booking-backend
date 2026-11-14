@@ -48,4 +48,11 @@ public class Payment {
 
     @Enumerated(EnumType.STRING)
     private PaymentType type;
+
+    /**
+     * Hours worked, set only for records with no real appointment behind them (e.g. imported
+     * monthly totals). When null, stats derive hours from the appointment's length instead.
+     */
+    @Column(precision = 6, scale = 2)
+    private BigDecimal hoursWorked;
 }
