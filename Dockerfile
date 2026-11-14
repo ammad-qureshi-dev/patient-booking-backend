@@ -19,8 +19,11 @@ USER spring
 
 COPY --from=build /app/app.jar app.jar
 
+# Business timezone: "now" checks (e.g. @Future on startTime) and today/month stats use it.
+# Container default is UTC, which rejects same-evening bookings. Override with -e TZ=... if needed.
 ENV PORT=8080 \
-    SPRING_PROFILES_ACTIVE=prod
+    SPRING_PROFILES_ACTIVE=prod \
+    TZ=America/Toronto
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
